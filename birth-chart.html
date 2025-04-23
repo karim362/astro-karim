@@ -60,7 +60,7 @@
 
   <script>
     async function getCoordinates(place) {
-      const response = await fetch(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(place)}&key=111&language=ar`);
+      const response = await fetch(`https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(place)}&key=2bae061bcafa45b2a7cfbeb395c52975&language=ar`);
       const data = await response.json();
       if (data.results.length > 0) {
         return data.results[0].geometry;
