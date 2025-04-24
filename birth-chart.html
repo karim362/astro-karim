@@ -5,7 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>الخريطة الفلكية</title>
   <style>
-    /* نفس الأنماط السابقة */
+    body {
+      background-color: #0a0a1a;
+      color: #fff;
+      font-family: 'Cairo', sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+    input, button {
+      width: 90%;
+      max-width: 400px;
+      padding: 10px;
+      margin: 10px auto;
+      display: block;
+      border-radius: 8px;
+      font-size: 1em;
+    }
+    input {
+      background-color: #1a1a2e;
+      border: none;
+      color: white;
+    }
+    button {
+      background: linear-gradient(to right, #4ca1af, #2c3e50);
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    button:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 10px rgba(76,161,175,0.7);
+    }
+    .card {
+      background: #222;
+      margin: 15px auto;
+      padding: 15px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 0 5px rgba(76,161,175,0.5);
+    }
+    #loading {
+      margin: 20px 0;
+      color: #4ca1af;
+      font-size: 1.2em;
+    }
+    .error {
+      color: #ff6b6b;
+      background: #2e0a0a;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .success {
+      color: #6bff6b;
+    }
   </style>
 </head>
 <body>
@@ -15,12 +69,12 @@
 
   <input type="text" id="name" placeholder="الاسم (اختياري)">
   <input type="date" id="birthdate" required>
-  <input type="time" id="birthtime" placeholder="الساعة (اختياري)">
-  <input type="text" id="location" placeholder="مكان الميلاد (مدينة فقط)">
+  <input type="time" id="birthtime">
+  <input type="text" id="location" placeholder="مكان الميلاد (مدينة)" required>
 
   <button onclick="generateChart()">استخرج الخريطة</button>
 
-  <div id="loading" style="display:none; margin:20px 0;">
+  <div id="loading" style="display:none;">
     <p>جاري حساب الخريطة الفلكية...</p>
   </div>
 
@@ -29,74 +83,111 @@
   <script>
     // استبدل هذا المفتاح بمفتاح API صالح من opencagedata.com
     const OPENCAGE_API_KEY = '2bae061bcafa45b2a7cfbeb395c52975';
+    // استبدل هذا الرابط برابط الخادم الخاص بك
+    const SERVER_URL = 'https://astro-flask.onrender.com';
+    // const SERVER_URL = 'https://astro-flask.onrender.com/calculate';
 
+    // دالة للحصول على الإحداثيات الجغرافية
     async function getCoordinates(place) {
       try {
+        console.log(`جاري جلب إحداثيات لـ: ${place}`);
         const response = await fetch(
           `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(place)}&key=${OPENCAGE_API_KEY}&language=ar`
         );
         
         if (!response.ok) {
-          throw new Error("خطأ في جلب بيانات الموقع");
+          throw new Error(`خطأ في الشبكة: ${response.status}`);
         }
         
         const data = await response.json();
+        console.log("استجابة OpenCage:", data);
         
         if (data.results && data.results.length > 0) {
-          return data.results[0].geometry;
+          const geometry = data.results[0].geometry;
+          console.log(`الإحداثيات: ${geometry.lat}, ${geometry.lng}`);
+          return geometry;
         } else {
-          throw new Error("لم يتم العثور على الموقع");
+          throw new Error("لم يتم العثور على الموقع، يرجى التأكد من اسم المدينة");
         }
       } catch (error) {
         console.error("Error in getCoordinates:", error);
-        throw error;
+        throw new Error(`تعذر الحصول على إحداثيات الموقع: ${error.message}`);
       }
     }
 
+    // دالة لإنشاء الخريطة الفلكية
     async function generateChart() {
-      const name = document.getElementById("name").value;
-      const birthdate = document.getElementById("birthdate").value;
-      const birthtime = document.getElementById("birthtime").value || "12:00";
-      const location = document.getElementById("location").value;
-
-      if (!birthdate || !location) {
-        alert("يرجى إدخال تاريخ الميلاد والموقع.");
-        return;
-      }
-
-      document.getElementById("loading").style.display = "block";
+      // مسح النتائج السابقة
       document.getElementById("result").innerHTML = "";
-
+      document.getElementById("loading").style.display = "block";
+      
       try {
+        // جمع البيانات من النموذج
+        const name = document.getElementById("name").value;
+        const birthdate = document.getElementById("birthdate").value;
+        const birthtime = document.getElementById("birthtime").value || "12:00";
+        const location = document.getElementById("location").value;
+
+        // التحقق من البيانات المدخلة
+        if (!birthdate) {
+          throw new Error("تاريخ الميلاد مطلوب");
+        }
+        if (!location) {
+          throw new Error("مكان الميلاد مطلوب");
+        }
+
+        console.log("بيانات المدخلة:", { birthdate, birthtime, location });
+
+        // الحصول على الإحداثيات الجغرافية
         const geo = await getCoordinates(location);
         
-        // استبدل هذا الرابط برابط الخادم الخاص بك
-        const res = await fetch("https://astro-flask.onrender.com", {
+        // إعداد بيانات الإرسال للخادم
+        const requestData = {
+          date: birthdate,
+          time: birthtime,
+          lat: geo.lat,
+          lon: geo.lng
+        };
+
+        console.log("بيانات الإرسال للخادم:", requestData);
+
+        // إرسال الطلب إلى الخادم
+        const res = await fetch(SERVER_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date: birthdate,
-            time: birthtime,
-            lat: geo.lat,
-            lon: geo.lng
-          })
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify(requestData)
         });
 
+        console.log("حالة الاستجابة:", res.status);
+
         if (!res.ok) {
-          throw new Error(`خطأ في الخادم: ${res.status}`);
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.message || `خطأ في الخادم: ${res.status}`);
         }
 
         const data = await res.json();
-        
+        console.log("بيانات الخادم:", data);
+
+        // عرض النتائج
         if (data.status === "success") {
-          let html = `<h2>الخريطة الفلكية</h2>`;
-          if (name) html += `<h3>الاسم: ${name}</h3>`;
+          let html = `<h2 class="success">الخريطة الفلكية</h2>`;
           
-          html += `<div class="card">
-                    <p>تاريخ الميلاد: ${birthdate}</p>
-                    <p>مكان الميلاد: ${location}</p>
-                    <p>الإحداثيات: ${geo.lat.toFixed(2)}°N, ${geo.lng.toFixed(2)}°E</p>
-                  </div>`;
+          if (name) {
+            html += `<h3>الاسم: ${name}</h3>`;
+          }
+          
+          html += `
+            <div class="card">
+              <p>📅 تاريخ الميلاد: ${birthdate}</p>
+              <p>⏰ وقت الميلاد: ${birthtime}</p>
+              <p>📍 مكان الميلاد: ${location}</p>
+              <p>🌍 الإحداثيات: ${geo.lat.toFixed(4)}°N, ${geo.lng.toFixed(4)}°E</p>
+            </div>
+            <h3>مواضع الكواكب:</h3>
+          `;
           
           for (const [planet, pos] of Object.entries(data.planets)) {
             html += `<div class="card"><h3>${planet}</h3><p>${pos}°</p></div>`;
@@ -109,13 +200,46 @@
       } catch (err) {
         console.error("Error:", err);
         document.getElementById("result").innerHTML = `
-          <div class="card" style="color:red;">
-            <h3>خطأ</h3>
+          <div class="card error">
+            <h3>⚠️ حدث خطأ</h3>
             <p>${err.message}</p>
-            <p>يرجى المحاولة مرة أخرى أو التأكد من البيانات المدخلة</p>
+            <p>يرجى:</p>
+            <ul style="text-align: right;">
+              <li>التأكد من اتصال الإنترنت</li>
+              <li>التأكد من صحة البيانات المدخلة</li>
+              <li>المحاولة مرة أخرى لاحقاً</li>
+            </ul>
           </div>`;
       } finally {
         document.getElementById("loading").style.display = "none";
+      }
+    }
+
+    // اختبار الاتصال عند التحميل (اختياري)
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log("الصفحة جاهزة، جاري اختبار الاتصال...");
+      // يمكنك تفعيل هذا الجزء للاختبار
+      // testServerConnection();
+    });
+
+    // دالة لاختبار اتصال الخادم (اختياري)
+    async function testServerConnection() {
+      try {
+        console.log("جاري اختبار اتصال الخادم...");
+        const testRes = await fetch(SERVER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: "2000-01-01",
+            time: "12:00",
+            lat: 35.95,
+            lon: 38.0
+          })
+        });
+        const testData = await testRes.json();
+        console.log("اختبار اتصال الخادم ناجح:", testData);
+      } catch (testErr) {
+        console.error("اختبار اتصال الخادم فشل:", testErr);
       }
     }
   </script>
