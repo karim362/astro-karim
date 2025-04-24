@@ -81,7 +81,7 @@
 
       try {
         const geo = await getCoordinates(location);
-        const res = await fetch("https://astro-flask.onrender.com/calculate", {
+        const res = await fetch("https://astro-flask.onrender.com", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
